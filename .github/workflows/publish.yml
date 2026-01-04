@@ -8,15 +8,18 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1️⃣ Checkout the repository
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # 2️⃣ Set up JDK 17
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
 
+      # 3️⃣ Generate a new upload keystore
       - name: Generate upload keystore
         run: |
           keytool -genkeypair \
@@ -29,9 +32,20 @@ jobs:
             -validity 10000 \
             -dname "CN=Upload, OU=Android, O=Play, L=World, S=NA, C=US"
 
+      # 4️⃣ Export the upload key certificate for Play Console
+      - name: Export upload key certificate
+        run: |
+          keytool -export -rfc \
+            -keystore upload-keystore.jks \
+            -storepass "${{ secrets.KEYSTORE_PASSWORD }}" \
+            -alias "${{ secrets.KEY_ALIAS }}" \
+            -file upload-key.pem
+
+      # 5️⃣ Make gradlew executable
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
+      # 6️⃣ Build the signed AAB
       - name: Build SIGNED AAB
         run: |
           ./gradlew bundleRelease \
@@ -40,8 +54,23 @@ jobs:
             -Pandroid.injected.signing.key.alias="${{ secrets.KEY_ALIAS }}" \
             -Pandroid.injected.signing.key.password="${{ secrets.KEY_PASSWORD }}"
 
+      # 7️⃣ Upload signed AAB as artifact
       - name: Upload signed AAB artifact
         uses: actions/upload-artifact@v4
         with:
           name: signed-aab
           path: app/build/outputs/bundle/**/**/*.aab
+
+      # 8️⃣ Upload keystore as artifact
+      - name: Upload keystore
+        uses: actions/upload-artifact@v4
+        with:
+          name: upload-keystore
+          path: upload-keystore.jks
+
+      # 9️⃣ Upload upload-key certificate as artifact
+      - name: Upload upload-key certificate
+        uses: actions/upload-artifact@v4
+        with:
+          name: upload-key-cert
+          path: upload-key.pem

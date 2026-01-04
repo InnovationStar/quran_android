@@ -1,33 +1,29 @@
-# publish.yml
-# Build and Publish Quran Android App (UNSIGNED AAB)
-# Google Play App Signing will handle signing
-
-name: Build and Publish Quran Android App
+name: Build Android AAB (No Upload)
 
 on:
   push:
-    branches: [ main ]
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+    branches:
+      - main
+  workflow_dispatch:
 
 jobs:
-  release:
-    name: Build and Upload
+  build:
+    name: Generate AAB
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout the Code
+      # 1️⃣ Checkout source
+      - name: Checkout code
         uses: actions/checkout@v4
 
+      # 2️⃣ Setup Java
       - name: Setup JDK 17
         uses: actions/setup-java@v4
         with:
-          distribution: zulu
-          java-version: '17'
+          distribution: temurin
+          java-version: 17
 
-      # Cache Gradle for faster builds
+      # 3️⃣ Cache Gradle
       - name: Cache Gradle
         uses: actions/cache@v4
         with:
@@ -36,24 +32,18 @@ jobs:
             ~/.gradle/wrapper
           key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v5
+      # 4️⃣ Make gradlew executable
+      - name: Grant execute permission
+        run: chmod +x ./gradlew
 
-      # 🔑 NO SIGNING — Build UNSIGNED AAB
-      - name: Build Release AAB (Unsigned)
-        run: ./gradlew bundleMadaniRelease
+      # 5️⃣ Build AAB (unsigned is OK)
+      - name: Build Release AAB
+        run: ./gradlew bundleRelease
 
-      # Verify output
-      - name: Verify AAB
-        run: ls -la app/build/outputs/bundle/madaniRelease/
-
-      # Upload to Google Play (Google signs it)
-      - name: Upload Artifact to Play Store
-        uses: r0adkll/upload-google-play@v1
+      # 6️⃣ Upload AAB as artifact
+      - name: Upload AAB Artifact
+        uses: actions/upload-artifact@v4
         with:
-          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
-          packageName: com.quran.labs.androidquran
-          releaseFiles: app/build/outputs/bundle/madaniRelease/app-madani-release.aab
-          track: internal
-          status: completed
+          name: android-aab
+          path: app/build/outputs/bundle/**/**/*.aab
 

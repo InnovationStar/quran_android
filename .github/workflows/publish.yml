@@ -1,3 +1,8 @@
+# publish.yml
+# Build and Publish Quran Android App
+# This workflow builds a signed Android App Bundle (AAB) and uploads it to the Google Play Store's internal track.
+# It includes security improvements like temporary keystore handling and cleanup.
+
 name: Build and Publish Quran Android App
 
 on:
@@ -16,34 +21,54 @@ jobs:
       - name: Checkout the Code
         uses: actions/checkout@v6
 
-      # --- THIS STEP DECODES THE KEYSTORE AND SETS THE PATH ENV VAR ---
+      # --- Prepare Keystore in a Temporary Directory for Security ---
       - name: Prepare Keystore File Path
         run: |
-          # Decode the secret into a file
-          echo ${{ secrets.RELEASE_KEYSTORE }} | base64 --decode > release.jks
+          # Create a temporary directory for the keystore
+          mkdir -p temp_keystore
+          # Decode the secret into the temp file
+          echo ${{ secrets.RELEASE_KEYSTORE }} | base64 --decode > temp_keystore/release.jks
           # Set the environment variable that Gradle will read
-          echo "KEYSTORE_FILE_PATH=$GITHUB_WORKSPACE/release.jks" >> $GITHUB_ENV
+          echo "KEYSTORE_FILE_PATH=$GITHUB_WORKSPACE/temp_keystore/release.jks" >> $GITHUB_ENV
       # ---------------------------------------------------------------
-      
+
       - name: Setup JDK
         uses: actions/setup-java@v5
         with:
           distribution: zulu
-          java-version: '17' 
-          
+          java-version: '17'
+
+      # --- Cache Gradle Dependencies for Faster Builds ---
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: ~/.gradle/caches
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+      # ---------------------------------------------------
+
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v5
 
       - name: Build and Sign AAB
-        # This now relies purely on the app/build.gradle change below
+        # This relies on the app/build.gradle using the KEYSTORE_FILE_PATH env var for signing
         run: ./gradlew bundleMadaniRelease
+
+      # --- Verify the AAB Exists Before Upload ---
+      - name: Verify AAB
+        run: ls -la app/build/outputs/bundle/madaniRelease/app-madani-release.aab
+      # --------------------------------------------
 
       - name: Upload Artifact to Play Store
         uses: r0adkll/upload-google-play@v1
         with:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
-          packageName: com.quran.labs.androidquran 
+          packageName: com.quran.labs.androidquran
           releaseFiles: app/build/outputs/bundle/madaniRelease/app-madani-release.aab
-          track: internal 
+          track: internal
           status: completed
 
+      # --- Cleanup Temporary Files for Security ---
+      - name: Cleanup Keystore
+        run: rm -rf temp_keystore
+        if: always()  # Run even if previous steps fail
+      # --------------------------------------------

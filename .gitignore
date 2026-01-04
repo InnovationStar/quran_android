@@ -1,3 +1,8 @@
+# Ignore local keystore files and the temporary file created by GitHub Actions
+*.jks
+*.p12
+keystore.p12
+release.jks
 .project
 .settings
 .kotlin

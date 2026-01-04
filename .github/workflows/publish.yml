@@ -1,4 +1,4 @@
-name: Build Signed AAB (Upload Key)
+name: Build Signed AAB (Generate Upload Key)
 
 on:
   workflow_dispatch:
@@ -11,19 +11,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up JDK
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
       - name: Generate upload keystore
         run: |
           keytool -genkeypair \
-            -v \
             -keystore upload-keystore.jks \
             -storepass "${{ secrets.KEYSTORE_PASSWORD }}" \
             -alias "${{ secrets.KEY_ALIAS }}" \
@@ -33,15 +29,10 @@ jobs:
             -validity 10000 \
             -dname "CN=Upload, OU=Android, O=Play, L=World, S=NA, C=US"
 
-      - name: Decode google-services.json (if exists)
-        if: ${{ secrets.GOOGLE_SERVICES_JSON != '' }}
-        run: |
-          echo "${{ secrets.GOOGLE_SERVICES_JSON }}" | base64 -d > app/google-services.json
-
-      - name: Grant execute permission for Gradle
+      - name: Make gradlew executable
         run: chmod +x ./gradlew
 
-      - name: Build signed AAB
+      - name: Build SIGNED AAB
         run: |
           ./gradlew bundleRelease \
             -Pandroid.injected.signing.store.file=$PWD/upload-keystore.jks \
@@ -49,8 +40,8 @@ jobs:
             -Pandroid.injected.signing.key.alias="${{ secrets.KEY_ALIAS }}" \
             -Pandroid.injected.signing.key.password="${{ secrets.KEY_PASSWORD }}"
 
-      - name: Upload AAB artifact
+      - name: Upload signed AAB artifact
         uses: actions/upload-artifact@v4
         with:
           name: signed-aab
-          path: app/build/outputs/bundle/release/*.aab
+          path: app/build/outputs/bundle/**/**/*.aab

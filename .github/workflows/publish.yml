@@ -27,9 +27,8 @@ jobs:
       - name: Upload to Play Store
         uses: r0adkll/upload-google-play@v1
         with:
-          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
-          packageName: com.quran.labs.androidquran # REPLACE with your actual package name
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_AC }}
+          packageName: com.quran.labs.androidquran # <-- This is your specific package name
           releaseFiles: app/build/outputs/bundle/release/app-release.aab
           track: internal # Options: internal, alpha, beta, production
           status: completed
-          

@@ -1,45 +1,52 @@
-name: Publish to Play Store
+name: Build and Publish Quran Android App
 
 on:
   push:
-    branches: [ "main" ] # Triggers when you push to the main branch
+    branches: [ main ] # Trigger the workflow when pushing to the main branch
 
 jobs:
-  build:
+  release:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      # THIS NEW STEP RECREATES THE JSON FILE FROM YOUR SECRET:
-      - name: Create google-services.json file from secret
-        run: echo '${{ secrets.GOOGLE_SERVICES_JSON_CONTENT }}' > app/google-services.json
+      # --- Step 1: Decode Keystore and Set Environment Variables ---
+      # This step creates the physical keystore file that Gradle will use for signing.
+      - name: Prepare Keystore and Environment Variables
+        run: |
+          # 1. Decode the base64 secret into a physical file named 'release.jks'
+          echo ${{ secrets.RELEASE_KEYSTORE }} | base64 --decode > release.jks
+          
+          # 2. Set environment variables that Gradle will read
+          # Note: The KEYSTORE_PASSWORD/KEY_PASSWORD/KEY_ALIAS can also be read directly
+          #       if you update your app/build.gradle to use System.getenv()
+          echo "KEYSTORE_FILE_PATH=$GITHUB_WORKSPACE/release.jks" >> $GITHUB_ENV
+          echo "KEYSTORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}" >> $GITHUB_ENV
+          echo "KEY_ALIAS=${{ secrets.KEY_ALIAS }}" >> $GITHUB_ENV
+          echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> $GITHUB_ENV
+      # -----------------------------------------------------------
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
-          cache: gradle
-
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
-
-      - name: Build Release Bundle
+          
+      - name: Build and Sign AAB
+        # This command builds your signed Android App Bundle (.aab file)
+        # Ensure your app/build.gradle uses System.getenv() for signing details
         run: ./gradlew bundleRelease
 
-      - name: Upload Release Bundle as Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-bundle-release
-          path: app/build/outputs/bundle/release/app-release.aab
-          retention-days: 1
-
-      - name: Upload to Play Store
+      # --- Step 2: Upload to Google Play Store ---
+      - name: Upload Artifact to Play Store
         uses: r0adkll/upload-google-play@v1
         with:
+          # Use the PLAY_SERVICE_ACCOUNT_JSON secret for authentication
           serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
-          packageName: com.quran.labs.androidquran
+          # Use the specified application ID
+          packageName: quran.android.application 
+          # Specify where the built AAB file is located (check your build outputs)
           releaseFiles: app/build/outputs/bundle/release/app-release.aab
-          track: internal
+          track: internal # Options: internal, alpha, beta, production
           status: completed
+

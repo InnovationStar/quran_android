@@ -9,12 +9,8 @@ plugins {
   alias(libs.plugins.metro)
 }
 
-// whether or not to use Firebase - Firebase is enabled by default, and is only disabled for
-// providing apks for open source distribution stores.
 val useFirebase = !project.hasProperty("disableFirebase")
 
-// only want to apply the Firebase plugin if we're building a release build. moving this to the
-// release build type won't work, since debug builds would also implicitly get the plugin.
 if (getGradle().startParameter.taskRequests.toString().contains("Release") && useFirebase) {
   apply(plugin = "com.google.gms.google-services")
   apply(plugin = "com.google.firebase.crashlytics")
@@ -30,7 +26,6 @@ android {
   }
 
   androidResources {
-    // Indonesian is still in instead of id due to https://issuetracker.google.com/issues/36911507
     @Suppress("UnstableApiUsage")
     localeFilters += listOf(
       "ar", "az", "bg", "bn", "bs", "cs", "da", "de", "el", "es", "et", "fa",
@@ -41,28 +36,17 @@ android {
   }
 
   dependenciesInfo {
-    // only keep dependency info block for builds with Firebase
     includeInApk = useFirebase
     includeInBundle = useFirebase
   }
 
   buildFeatures.buildConfig = true
 
-// In your app/build.gradle file, update the signingConfigs block:
-
-  signingConfigs {
-    create("release") {
-      // Prioritize the ENV variable from GitHub Actions, otherwise use gradle.properties value
-      storeFile = file(System.getenv("KEYSTORE_FILE_PATH") ?: project.property("STORE_FILE") as String)
-      
-      storePassword = project.property("STORE_PASSWORD") as String
-      keyAlias = project.property("KEY_ALIAS") as String
-      keyPassword = project.property("KEY_PASSWORD") as String
-    }
-  }
-
+  // ❌ REMOVED signingConfigs COMPLETELY
+  // Google Play App Signing will sign the AAB
 
   flavorDimensions += listOf("pageType")
+
   productFlavors {
     create("madani") {
       applicationId = "com.quran.labs.androidquran"
@@ -73,8 +57,11 @@ android {
     create("beta") {
       isMinifyEnabled = true
       isShrinkResources = true
-      proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard.cfg")
-      signingConfig = signingConfigs.getByName("release")
+      proguardFiles(
+        getDefaultProguardFile("proguard-android-optimize.txt"),
+        "proguard.cfg"
+      )
+      // ❌ NO signingConfig
       versionNameSuffix = "-beta"
       matchingFallbacks += listOf("debug", "release")
     }
@@ -88,8 +75,11 @@ android {
     getByName("release") {
       isMinifyEnabled = true
       isShrinkResources = true
-      proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard.cfg")
-      signingConfig = signingConfigs.getByName("release")
+      proguardFiles(
+        getDefaultProguardFile("proguard-android-optimize.txt"),
+        "proguard.cfg"
+      )
+      // ❌ NO signingConfig
     }
   }
 
@@ -98,7 +88,11 @@ android {
     resValue("string", "file_authority", "${applicationId}.fileprovider")
     if (applicationId.endsWith("debug")) {
       mergedFlavor.manifestPlaceholders["app_debug_label"] =
-        "Quran ${flavorName.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }}"
+        "Quran ${
+          flavorName.replaceFirstChar {
+            if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString()
+          }
+        }"
     }
   }
 
@@ -107,7 +101,13 @@ android {
       isIncludeAndroidResources = true
       all {
         it.testLogging {
-          events("passed", "skipped", "failed", "standardOut", "standardError")
+          events(
+            "passed",
+            "skipped",
+            "failed",
+            "standardOut",
+            "standardError"
+          )
           showStandardStreams = true
         }
       }
@@ -116,12 +116,15 @@ android {
 
   packaging {
     resources {
-      excludes += setOf("META-INF/*.kotlin_module", "META-INF/DEPENDENCIES", "META-INF/INDEX.LIST")
+      excludes += setOf(
+        "META-INF/*.kotlin_module",
+        "META-INF/DEPENDENCIES",
+        "META-INF/INDEX.LIST"
+      )
     }
   }
 }
 
-// required so that Errorprone doesn't look at generated files
 afterEvaluate {
   tasks.withType<JavaCompile>().configureEach {
     (options as ExtensionAware).extensions.configure<ErrorProneOptions> {
@@ -159,8 +162,6 @@ dependencies {
   implementation(project(":feature:audiobar"))
   implementation(project(":feature:downloadmanager"))
   implementation(project(":feature:qarilist"))
-
-  // android auto support
   implementation(project(":feature:autoquran"))
 
   implementation(libs.kotlinx.coroutines.core)
@@ -180,28 +181,22 @@ dependencies {
   implementation(libs.androidx.swiperefreshlayout)
   implementation(libs.androidx.window)
 
-  // compose
   implementation(libs.compose.ui)
-
-  // okio
   implementation(libs.okio)
 
-  // rx
   implementation(libs.rxjava)
   implementation(libs.rxandroid)
 
-  // analytics
   debugImplementation(project(":feature:analytics-noop"))
   add("betaImplementation", project(":feature:analytics-noop"))
+
   if (useFirebase) {
     releaseImplementation(project(":feature:firebase-analytics"))
   } else {
     releaseImplementation(project(":feature:analytics-noop"))
   }
 
-  // workmanager
   implementation(libs.androidx.work.runtime.ktx)
-
   implementation(libs.okhttp)
 
   implementation(libs.moshi)
@@ -224,6 +219,6 @@ dependencies {
 
   errorprone(libs.errorprone.core)
 
-  // Number Picker
   implementation(libs.number.picker)
 }
+

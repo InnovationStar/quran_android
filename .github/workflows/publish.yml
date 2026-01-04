@@ -1,49 +1,57 @@
-name: Build Android AAB (No Upload)
+name: Build Signed AAB (Upload Key)
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
 
 jobs:
   build:
-    name: Generate AAB
     runs-on: ubuntu-latest
 
     steps:
-      # 1️⃣ Checkout source
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2️⃣ Setup Java
-      - name: Setup JDK 17
+      - name: Set up JDK
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
 
-      # 3️⃣ Cache Gradle
-      - name: Cache Gradle
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
 
-      # 4️⃣ Make gradlew executable
-      - name: Grant execute permission
+      - name: Generate upload keystore
+        run: |
+          keytool -genkeypair \
+            -v \
+            -keystore upload-keystore.jks \
+            -storepass "${{ secrets.KEYSTORE_PASSWORD }}" \
+            -alias "${{ secrets.KEY_ALIAS }}" \
+            -keypass "${{ secrets.KEY_PASSWORD }}" \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -dname "CN=Upload, OU=Android, O=Play, L=World, S=NA, C=US"
+
+      - name: Decode google-services.json (if exists)
+        if: ${{ secrets.GOOGLE_SERVICES_JSON != '' }}
+        run: |
+          echo "${{ secrets.GOOGLE_SERVICES_JSON }}" | base64 -d > app/google-services.json
+
+      - name: Grant execute permission for Gradle
         run: chmod +x ./gradlew
 
-      # 5️⃣ Build AAB (unsigned is OK)
-      - name: Build Release AAB
-        run: ./gradlew bundleRelease
+      - name: Build signed AAB
+        run: |
+          ./gradlew bundleRelease \
+            -Pandroid.injected.signing.store.file=$PWD/upload-keystore.jks \
+            -Pandroid.injected.signing.store.password="${{ secrets.KEYSTORE_PASSWORD }}" \
+            -Pandroid.injected.signing.key.alias="${{ secrets.KEY_ALIAS }}" \
+            -Pandroid.injected.signing.key.password="${{ secrets.KEY_PASSWORD }}"
 
-      # 6️⃣ Upload AAB as artifact
-      - name: Upload AAB Artifact
+      - name: Upload AAB artifact
         uses: actions/upload-artifact@v4
         with:
-          name: android-aab
-          path: app/build/outputs/bundle/**/**/*.aab
+          name: signed-aab
+          path: app/build/outputs/bundle/release/*.aab
 

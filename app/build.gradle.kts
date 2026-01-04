@@ -48,14 +48,19 @@ android {
 
   buildFeatures.buildConfig = true
 
+// In your app/build.gradle file, update the signingConfigs block:
+
   signingConfigs {
     create("release") {
-      storeFile = file((project.property("STORE_FILE") as String))
+      // Prioritize the ENV variable from GitHub Actions, otherwise use gradle.properties value
+      storeFile = file(System.getenv("KEYSTORE_FILE_PATH") ?: project.property("STORE_FILE") as String)
+      
       storePassword = project.property("STORE_PASSWORD") as String
       keyAlias = project.property("KEY_ALIAS") as String
       keyPassword = project.property("KEY_PASSWORD") as String
     }
   }
+
 
   flavorDimensions += listOf("pageType")
   productFlavors {

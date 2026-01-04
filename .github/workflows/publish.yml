@@ -11,6 +11,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # THIS NEW STEP RECREATES THE JSON FILE FROM YOUR SECRET:
+      - name: Create google-services.json file from secret
+        run: echo '${{ secrets.GOOGLE_SERVICES_JSON_CONTENT }}' > app/google-services.json
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -24,11 +28,18 @@ jobs:
       - name: Build Release Bundle
         run: ./gradlew bundleRelease
 
+      - name: Upload Release Bundle as Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-bundle-release
+          path: app/build/outputs/bundle/release/app-release.aab
+          retention-days: 1
+
       - name: Upload to Play Store
         uses: r0adkll/upload-google-play@v1
         with:
-          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_SERVICES_JSON_CONTENT }}
-          packageName: com.quran.labs.androidquran # <-- This is your specific package name
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.quran.labs.androidquran
           releaseFiles: app/build/outputs/bundle/release/app-release.aab
-          track: internal # Options: internal, alpha, beta, production
+          track: internal
           status: completed

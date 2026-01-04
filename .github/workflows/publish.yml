@@ -2,7 +2,7 @@ name: Build and Publish Quran Android App
 
 on:
   push:
-    branches: [ main ] # Trigger on pushes to the main branch
+    branches: [ main ]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -14,39 +14,33 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout the Code
-        uses: actions/checkout@v6 # Use the same checkout version as your working file
+        uses: actions/checkout@v6
 
-      # --- Step 1: Decode Keystore from Secrets ---
-      # This creates the physical 'release.jks' file that gradle.properties points to.
+      # --- THIS STEP FIXES THE MISSING FILE ERROR ---
       - name: Decode Keystore file
         run: |
           echo ${{ secrets.RELEASE_KEYSTORE }} | base64 --decode > release.jks
+      # -----------------------------------------------
       
       - name: Setup JDK
-        uses: actions/setup-java@v5 # Use the same setup-java version as your working file
+        uses: actions/setup-java@v5
         with:
-          # Use your specific java version file if needed, otherwise '17' as before
-          distribution: zulu # Using 'zulu' as seen in the working file
+          distribution: zulu
           java-version: '17' 
           
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v5 # Use the same setup-gradle version
+        uses: gradle/actions/setup-gradle@v5
 
       - name: Build and Sign AAB
-        # This command targets the 'bundleMadaniRelease' task, which requires signing.
-        # It finds the 'release.jks' file via your gradle.properties config.
+        # This task now finds the release.jks file via the path in gradle.properties
         run: ./gradlew bundleMadaniRelease
 
-      # --- Step 2: Upload to Google Play Store ---
       - name: Upload Artifact to Play Store
         uses: r0adkll/upload-google-play@v1
         with:
-          # Use the secret name you configured for your JSON key file
           serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
-          # Use the correct application ID from your app/build.gradle
           packageName: com.quran.labs.androidquran 
-          # Specify the path for the specific flavor's AAB file
           releaseFiles: app/build/outputs/bundle/madaniRelease/app-madani-release.aab
-          track: internal # Options: internal, alpha, beta, production
+          track: internal 
           status: completed
 

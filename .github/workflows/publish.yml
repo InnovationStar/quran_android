@@ -15,28 +15,42 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2️⃣ JDK 17
+      # 2️⃣ Setup JDK 17
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
 
-      # 3️⃣ Decode keystore from Base64
+      # 3️⃣ Cache Gradle packages
+      - name: Cache Gradle packages
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper/
+          key: gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: gradle-
+
+      # 4️⃣ Decode upload keystore
       - name: Decode upload keystore
         run: |
-          echo "${{ secrets.UPLOAD_KEYSTORE_BASE64 }}" | base64 -d > upload-keystore.jks
+          mkdir -p app
+          echo "${{ secrets.UPLOAD_KEYSTORE_BASE64 }}" | base64 -d > app/upload-keystore.jks
+          ls -l app/   # Verify the keystore exists
 
-      # 4️⃣ Create google-services.json from secret
+      # 5️⃣ Create google-services.json from secret
       - name: Create google-services.json
         run: |
-          echo '${{ secrets.GOOGLE_SERVICES_JSON_CONTENT }}' > app/google-services.json
+          mkdir -p app
+          echo "${{ secrets.GOOGLE_SERVICES_JSON_CONTENT }}" > app/google-services.json
+          ls -l app/   # Verify the file exists
 
-      # 5️⃣ Grant execute permission
+      # 6️⃣ Grant execute permission for gradlew
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      # 6️⃣ Build signed AAB
+      # 7️⃣ Build signed AAB
       - name: Build signed AAB
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
@@ -44,12 +58,13 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           ./gradlew bundleMadaniRelease \
-            -Pandroid.injected.signing.store.file=upload-keystore.jks \
+            -Pandroid.injected.signing.store.file=app/upload-keystore.jks \
             -Pandroid.injected.signing.store.password=$KEYSTORE_PASSWORD \
             -Pandroid.injected.signing.key.alias=$KEY_ALIAS \
-            -Pandroid.injected.signing.key.password=$KEY_PASSWORD
+            -Pandroid.injected.signing.key.password=$KEY_PASSWORD \
+            --stacktrace
 
-      # 7️⃣ Upload AAB artifact
+      # 8️⃣ Upload signed AAB artifact
       - name: Upload signed AAB artifact
         uses: actions/upload-artifact@v4
         with:

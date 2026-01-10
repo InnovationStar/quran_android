@@ -1,76 +1,57 @@
-name: Build Signed AAB (Generate Upload Key)
+name: Android Release Build
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      # 1️⃣ Checkout the repository
+      # 1️⃣ Checkout
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2️⃣ Set up JDK 17
+      # 2️⃣ JDK 17
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
 
-      # 3️⃣ Generate a new upload keystore
-      - name: Generate upload keystore
+      # 3️⃣ Decode keystore from Base64
+      - name: Decode upload keystore
         run: |
-          keytool -genkeypair \
-            -keystore upload-keystore.jks \
-            -storepass "${{ secrets.KEYSTORE_PASSWORD }}" \
-            -alias "${{ secrets.KEY_ALIAS }}" \
-            -keypass "${{ secrets.KEY_PASSWORD }}" \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000 \
-            -dname "CN=Upload, OU=Android, O=Play, L=World, S=NA, C=US"
+          echo "${{ secrets.UPLOAD_KEYSTORE_BASE64 }}" | base64 -d > upload-keystore.jks
 
-      # 4️⃣ Export the upload key certificate for Play Console
-      - name: Export upload key certificate
+      # 4️⃣ Create google-services.json from secret
+      - name: Create google-services.json
         run: |
-          keytool -export -rfc \
-            -keystore upload-keystore.jks \
-            -storepass "${{ secrets.KEYSTORE_PASSWORD }}" \
-            -alias "${{ secrets.KEY_ALIAS }}" \
-            -file upload-key.pem
+          echo '${{ secrets.GOOGLE_SERVICES_JSON_CONTENT }}' > app/google-services.json
 
-      # 5️⃣ Make gradlew executable
-      - name: Make gradlew executable
-        run: chmod +x ./gradlew
+      # 5️⃣ Grant execute permission
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
 
-      # 6️⃣ Build the signed AAB
-      - name: Build SIGNED AAB
+      # 6️⃣ Build signed AAB
+      - name: Build signed AAB
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          ./gradlew bundleRelease \
-            -Pandroid.injected.signing.store.file=$PWD/upload-keystore.jks \
-            -Pandroid.injected.signing.store.password="${{ secrets.KEYSTORE_PASSWORD }}" \
-            -Pandroid.injected.signing.key.alias="${{ secrets.KEY_ALIAS }}" \
-            -Pandroid.injected.signing.key.password="${{ secrets.KEY_PASSWORD }}"
+          ./gradlew bundleMadaniRelease \
+            -Pandroid.injected.signing.store.file=upload-keystore.jks \
+            -Pandroid.injected.signing.store.password=$KEYSTORE_PASSWORD \
+            -Pandroid.injected.signing.key.alias=$KEY_ALIAS \
+            -Pandroid.injected.signing.key.password=$KEY_PASSWORD
 
-      # 7️⃣ Upload signed AAB as artifact
+      # 7️⃣ Upload AAB artifact
       - name: Upload signed AAB artifact
         uses: actions/upload-artifact@v4
         with:
-          name: signed-aab
-          path: app/build/outputs/bundle/**/**/*.aab
-
-      # 8️⃣ Upload keystore as artifact
-      - name: Upload keystore
-        uses: actions/upload-artifact@v4
-        with:
-          name: upload-keystore
-          path: upload-keystore.jks
-
-      # 9️⃣ Upload upload-key certificate as artifact
-      - name: Upload upload-key certificate
-        uses: actions/upload-artifact@v4
-        with:
-          name: upload-key-cert
-          path: upload-key.pem
+          name: app-release-aab
+          path: app/build/outputs/bundle/madaniRelease/*.aab

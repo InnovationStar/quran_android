@@ -50,13 +50,22 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      # 7️⃣ Build signed AAB
+      # 7️⃣ Debug: List Gradle tasks and check files
+      - name: Debug Gradle environment
+        run: |
+          echo "Listing files in app/:"
+          ls -l app/
+          echo "Available Gradle tasks:"
+          ./gradlew tasks --all
+
+      # 8️⃣ Build signed AAB
       - name: Build signed AAB
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
+          echo "Building AAB..."
           ./gradlew bundleMadaniRelease \
             -Pandroid.injected.signing.store.file=app/upload-keystore.jks \
             -Pandroid.injected.signing.store.password=$KEYSTORE_PASSWORD \
@@ -64,7 +73,7 @@ jobs:
             -Pandroid.injected.signing.key.password=$KEY_PASSWORD \
             --stacktrace
 
-      # 8️⃣ Upload signed AAB artifact
+      # 9️⃣ Upload signed AAB artifact
       - name: Upload signed AAB artifact
         uses: actions/upload-artifact@v4
         with:

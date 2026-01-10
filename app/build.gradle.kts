@@ -49,7 +49,7 @@ android {
 
   productFlavors {
     create("madani") {
-      applicationId = "com.madani.quran"
+      applicationId = "com.madani.holyquran"
     }
   }
 

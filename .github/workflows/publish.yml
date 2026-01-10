@@ -1,4 +1,4 @@
-name: Android Release Build (Auto Flavor)
+name: Android Release Build (App Only)
 
 on:
   workflow_dispatch:
@@ -50,17 +50,17 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      # 7️⃣ List all release bundle tasks
-      - name: List release bundle tasks
+      # 7️⃣ List only app release bundle tasks
+      - name: List app release bundle tasks
         id: list_tasks
         run: |
-          echo "Fetching all bundle tasks..."
-          TASKS=$(./gradlew tasks --all | grep bundle | grep Release | awk '{print $1}')
+          echo "Fetching app release bundle tasks..."
+          TASKS=$(./gradlew tasks --all | grep '^app:bundle.*Release$' | awk '{print $1}')
           echo "Found tasks: $TASKS"
           echo "tasks=$TASKS" >> $GITHUB_OUTPUT
 
-      # 8️⃣ Build all release bundle tasks
-      - name: Build all release bundles
+      # 8️⃣ Build all app release bundle tasks
+      - name: Build app release bundles
         if: steps.list_tasks.outputs.tasks != ''
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
@@ -79,9 +79,8 @@ jobs:
 
       # 9️⃣ Upload all generated AAB artifacts
       - name: Upload AAB artifacts
-        run: |
-          for aab in app/build/outputs/bundle/*/*/*.aab; do
-            VARIANT=$(basename $(dirname $(dirname $aab)))
-            echo "Uploading $aab as $VARIANT.aab..."
-            gh actions upload-artifact --name "aab-$VARIANT" --path "$aab"
-          done
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-aab
+          path: |
+            app/build/outputs/bundle/*/*/*.aab

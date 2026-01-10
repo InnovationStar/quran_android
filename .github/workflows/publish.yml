@@ -1,4 +1,4 @@
-name: Android Release Build (App Only)
+name: Android Release Build (Debug Checks)
 
 on:
   workflow_dispatch:
@@ -37,14 +37,20 @@ jobs:
         run: |
           mkdir -p app
           echo "${{ secrets.UPLOAD_KEYSTORE_BASE64 }}" | base64 -d > app/upload-keystore.jks
+          echo "Keystore contents:"
           ls -l app/
+          echo "Verifying keystore..."
+          keytool -list -v -keystore app/upload-keystore.jks -storepass ${{ secrets.KEYSTORE_PASSWORD }}
 
       # 5️⃣ Decode google-services.json
       - name: Decode google-services.json
         run: |
           mkdir -p app
           echo "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" | base64 -d > app/google-services.json
-          ls -l app/
+          echo "google-services.json contents preview:"
+          head -n 20 app/google-services.json
+          echo "Verifying JSON format..."
+          cat app/google-services.json | jq . || echo "JSON is invalid!"
 
       # 6️⃣ Grant execute permission for gradlew
       - name: Grant execute permission for gradlew
@@ -74,7 +80,7 @@ jobs:
               -Pandroid.injected.signing.store.password=$KEYSTORE_PASSWORD \
               -Pandroid.injected.signing.key.alias=$KEY_ALIAS \
               -Pandroid.injected.signing.key.password=$KEY_PASSWORD \
-              --stacktrace
+              --stacktrace --info --debug
           done
 
       # 9️⃣ Upload all generated AAB artifacts

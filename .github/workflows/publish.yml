@@ -32,19 +32,19 @@ jobs:
           key: gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: gradle-
 
-      # 4️⃣ Decode upload keystore
+      # 4️⃣ Decode upload keystore from Base64
       - name: Decode upload keystore
         run: |
           mkdir -p app
           echo "${{ secrets.UPLOAD_KEYSTORE_BASE64 }}" | base64 -d > app/upload-keystore.jks
-          ls -l app/   # Verify the keystore exists
+          ls -l app/
 
-      # 5️⃣ Create google-services.json from secret (preserve formatting)
-      - name: Create google-services.json
+      # 5️⃣ Decode google-services.json from Base64
+      - name: Decode google-services.json
         run: |
           mkdir -p app
-          printf "%s" "${{ secrets.GOOGLE_SERVICES_JSON_CONTENT }}" > app/google-services.json
-          ls -l app/   # Verify the file exists
+          echo "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" | base64 -d > app/google-services.json
+          ls -l app/
 
       # 6️⃣ Grant execute permission for gradlew
       - name: Grant execute permission for gradlew

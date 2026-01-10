@@ -39,11 +39,11 @@ jobs:
           echo "${{ secrets.UPLOAD_KEYSTORE_BASE64 }}" | base64 -d > app/upload-keystore.jks
           ls -l app/   # Verify the keystore exists
 
-      # 5️⃣ Create google-services.json from secret
+      # 5️⃣ Create google-services.json from secret (preserve formatting)
       - name: Create google-services.json
         run: |
           mkdir -p app
-          echo "${{ secrets.GOOGLE_SERVICES_JSON_CONTENT }}" > app/google-services.json
+          printf "%s" "${{ secrets.GOOGLE_SERVICES_JSON_CONTENT }}" > app/google-services.json
           ls -l app/   # Verify the file exists
 
       # 6️⃣ Grant execute permission for gradlew

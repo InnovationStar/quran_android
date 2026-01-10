@@ -1,4 +1,4 @@
-name: Android Release Build
+name: Android Release Build (Auto Flavor)
 
 on:
   workflow_dispatch:
@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1️⃣ Checkout
+      # 1️⃣ Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -32,14 +32,14 @@ jobs:
           key: gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: gradle-
 
-      # 4️⃣ Decode upload keystore from Base64
+      # 4️⃣ Decode upload keystore
       - name: Decode upload keystore
         run: |
           mkdir -p app
           echo "${{ secrets.UPLOAD_KEYSTORE_BASE64 }}" | base64 -d > app/upload-keystore.jks
           ls -l app/
 
-      # 5️⃣ Decode google-services.json from Base64
+      # 5️⃣ Decode google-services.json
       - name: Decode google-services.json
         run: |
           mkdir -p app
@@ -50,32 +50,38 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      # 7️⃣ Debug: List Gradle tasks and check files
-      - name: Debug Gradle environment
+      # 7️⃣ List all release bundle tasks
+      - name: List release bundle tasks
+        id: list_tasks
         run: |
-          echo "Listing files in app/:"
-          ls -l app/
-          echo "Available Gradle tasks:"
-          ./gradlew tasks --all
+          echo "Fetching all bundle tasks..."
+          TASKS=$(./gradlew tasks --all | grep bundle | grep Release | awk '{print $1}')
+          echo "Found tasks: $TASKS"
+          echo "tasks=$TASKS" >> $GITHUB_OUTPUT
 
-      # 8️⃣ Build signed AAB
-      - name: Build signed AAB
+      # 8️⃣ Build all release bundle tasks
+      - name: Build all release bundles
+        if: steps.list_tasks.outputs.tasks != ''
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          echo "Building AAB..."
-          ./gradlew bundleMadaniRelease \
-            -Pandroid.injected.signing.store.file=app/upload-keystore.jks \
-            -Pandroid.injected.signing.store.password=$KEYSTORE_PASSWORD \
-            -Pandroid.injected.signing.key.alias=$KEY_ALIAS \
-            -Pandroid.injected.signing.key.password=$KEY_PASSWORD \
-            --stacktrace
+          for task in ${{ steps.list_tasks.outputs.tasks }}; do
+            echo "Building $task..."
+            ./gradlew $task \
+              -Pandroid.injected.signing.store.file=app/upload-keystore.jks \
+              -Pandroid.injected.signing.store.password=$KEYSTORE_PASSWORD \
+              -Pandroid.injected.signing.key.alias=$KEY_ALIAS \
+              -Pandroid.injected.signing.key.password=$KEY_PASSWORD \
+              --stacktrace
+          done
 
-      # 9️⃣ Upload signed AAB artifact
-      - name: Upload signed AAB artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-release-aab
-          path: app/build/outputs/bundle/madaniRelease/*.aab
+      # 9️⃣ Upload all generated AAB artifacts
+      - name: Upload AAB artifacts
+        run: |
+          for aab in app/build/outputs/bundle/*/*/*.aab; do
+            VARIANT=$(basename $(dirname $(dirname $aab)))
+            echo "Uploading $aab as $VARIANT.aab..."
+            gh actions upload-artifact --name "aab-$VARIANT" --path "$aab"
+          done

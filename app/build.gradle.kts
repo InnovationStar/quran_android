@@ -42,9 +42,6 @@ android {
 
   buildFeatures.buildConfig = true
 
-  // ❌ REMOVED signingConfigs COMPLETELY
-  // Google Play App Signing will sign the AAB
-
   flavorDimensions += listOf("pageType")
 
   productFlavors {
@@ -53,7 +50,22 @@ android {
     }
   }
 
+  /**
+   * 🔥 FIX: REQUIRED FOR CI + AAB SIGNING
+   */
+  signingConfigs {
+    create("release") {
+      val keystorePath = System.getenv("KEYSTORE_PATH") ?: "upload-keystore.jks"
+
+      storeFile = file(keystorePath)
+      storePassword = System.getenv("KEYSTORE_PASSWORD")
+      keyAlias = System.getenv("KEY_ALIAS")
+      keyPassword = System.getenv("KEY_PASSWORD")
+    }
+  }
+
   buildTypes {
+
     create("beta") {
       isMinifyEnabled = true
       isShrinkResources = true
@@ -61,7 +73,6 @@ android {
         getDefaultProguardFile("proguard-android-optimize.txt"),
         "proguard.cfg"
       )
-      // ❌ NO signingConfig
       versionNameSuffix = "-beta"
       matchingFallbacks += listOf("debug", "release")
     }
@@ -79,13 +90,18 @@ android {
         getDefaultProguardFile("proguard-android-optimize.txt"),
         "proguard.cfg"
       )
-      // ❌ NO signingConfig
+
+      /**
+       * 🔥 FIX: attach signing config to release build
+       */
+      signingConfig = signingConfigs.getByName("release")
     }
   }
 
   applicationVariants.all {
     resValue("string", "authority", "${applicationId}.data.QuranDataProvider")
     resValue("string", "file_authority", "${applicationId}.fileprovider")
+
     if (applicationId.endsWith("debug")) {
       mergedFlavor.manifestPlaceholders["app_debug_label"] =
         "Quran ${
@@ -101,13 +117,7 @@ android {
       isIncludeAndroidResources = true
       all {
         it.testLogging {
-          events(
-            "passed",
-            "skipped",
-            "failed",
-            "standardOut",
-            "standardError"
-          )
+          events("passed", "skipped", "failed", "standardOut", "standardError")
           showStandardStreams = true
         }
       }
@@ -221,4 +231,3 @@ dependencies {
 
   implementation(libs.number.picker)
 }
-

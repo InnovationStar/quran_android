@@ -22,7 +22,14 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      # 3️⃣ Cache Gradle
+      # 3️⃣ Clean Gradle state (IMPORTANT FIX)
+      - name: Clean Gradle state
+        run: |
+          ./gradlew clean || true
+          rm -rf ~/.gradle/caches
+          rm -rf ~/.gradle/daemon
+
+      # 4️⃣ Cache Gradle
       - name: Cache Gradle packages
         uses: actions/cache@v4
         with:
@@ -32,32 +39,34 @@ jobs:
           key: gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: gradle-
 
-      # 4️⃣ Decode upload keystore (FIXED PATH)
+      # 5️⃣ Decode upload keystore
       - name: Decode upload keystore
         run: |
           echo "${{ secrets.UPLOAD_KEYSTORE_BASE64 }}" | base64 -d > upload-keystore.jks
           ls -l upload-keystore.jks
           keytool -list -keystore upload-keystore.jks -storepass ${{ secrets.KEYSTORE_PASSWORD }}
 
-      # 5️⃣ Decode google-services.json
+      # 6️⃣ Decode google-services.json
       - name: Decode google-services.json
         run: |
           mkdir -p app
           echo "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" | base64 -d > app/google-services.json
           jq . app/google-services.json
 
-      # 6️⃣ Make gradlew executable
+      # 7️⃣ Make gradlew executable
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      # 7️⃣ Get only app release bundle tasks
+      # 8️⃣ Get ONLY app bundle tasks (FIXED OUTPUT BUG)
       - name: List app release bundle tasks
         id: list_tasks
         run: |
-          TASKS=$(./gradlew tasks --all | grep '^app:bundle.*Release$' | awk '{print $1}')
+          echo "Fetching tasks..."
+          TASKS=$(./gradlew tasks --all | grep '^app:bundle.*Release$' | awk '{print $1}' | tr '\n' ' ')
           echo "tasks=$TASKS" >> $GITHUB_OUTPUT
+          echo "Found tasks: $TASKS"
 
-      # 8️⃣ Build AAB (CLEAN + FIXED SIGNING PATH)
+      # 9️⃣ Build AAB bundles (FIXED SIGNING ISSUE)
       - name: Build app release bundles
         if: steps.list_tasks.outputs.tasks != ''
         env:
@@ -67,15 +76,16 @@ jobs:
         run: |
           for task in ${{ steps.list_tasks.outputs.tasks }}; do
             echo "Building $task..."
+
             ./gradlew $task \
-              -Pandroid.injected.signing.store.file=upload-keystore.jks \
+              -Pandroid.injected.signing.store.file=$GITHUB_WORKSPACE/upload-keystore.jks \
               -Pandroid.injected.signing.store.password=$KEYSTORE_PASSWORD \
               -Pandroid.injected.signing.key.alias=$KEY_ALIAS \
               -Pandroid.injected.signing.key.password=$KEY_PASSWORD \
               --stacktrace --console=plain --no-daemon
           done
 
-      # 9️⃣ Upload AAB artifacts
+      # 🔟 Upload AAB artifacts
       - name: Upload AAB artifacts
         uses: actions/upload-artifact@v5
         with:
